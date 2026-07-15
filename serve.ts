@@ -18,6 +18,7 @@ import handler from "./dist/server/server.js";
 const PORT = 3000;
 const HOST = "0.0.0.0";
 const CLIENT_DIR = `${import.meta.dir}/dist/client`;
+const PRODUCT_DIR = `${CLIENT_DIR}/app`;
 
 // Free PORT regardless of which user owns the current listener. lsof runs under
 // sudo so it can see (and the kill can signal) a process owned by another user;
@@ -41,6 +42,18 @@ for (let attempt = 1; ; attempt++) {
       hostname: HOST,
       async fetch(req) {
         const { pathname } = new URL(req.url);
+
+        // Serve the product PWA under /app/ with SPA fallback
+        if (pathname === "/app" || pathname.startsWith("/app/")) {
+          // Try exact file match first (assets, manifest, sw, etc.)
+          const relativePath = pathname === "/app" ? "/index.html" : pathname.replace("/app", "");
+          const file = Bun.file(PRODUCT_DIR + relativePath);
+          if (await file.exists()) return new Response(file);
+          // SPA fallback: serve index.html for all /app/ routes
+          const indexFile = Bun.file(`${PRODUCT_DIR}/index.html`);
+          if (await indexFile.exists()) return new Response(indexFile);
+        }
+
         if (pathname !== "/") {
           const file = Bun.file(CLIENT_DIR + pathname);
           if (await file.exists()) return new Response(file);
